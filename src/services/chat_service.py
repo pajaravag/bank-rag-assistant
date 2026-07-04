@@ -46,9 +46,22 @@ CONTEXTO (fragmentos del sitio web del banco):
 PREGUNTA: {question}"""
 
 CONDENSE_PROMPT = """\
-Reescribe la última pregunta del usuario como una pregunta independiente y \
-completa en español, resolviendo referencias al historial de la conversación. \
-Devuelve ÚNICAMENTE la pregunta reescrita, sin explicaciones."""
+Eres un reescritor de consultas para un buscador. Tu ÚNICA tarea es reescribir \
+la pregunta de seguimiento como una pregunta autónoma en español, usando el \
+historial solo para resolver referencias ("eso", "lo", "el anterior", ...).
+
+Reglas estrictas:
+- NUNCA respondas la pregunta ni agregues información.
+- Devuelve una sola línea: la pregunta reescrita.
+- Si la pregunta ya es autónoma, devuélvela tal cual."""
+
+CONDENSE_USER_TEMPLATE = """\
+HISTORIAL:
+{transcript}
+
+PREGUNTA DE SEGUIMIENTO: {question}
+
+Pregunta reescrita:"""
 
 NO_CONTEXT_ANSWER = (
     "No encontré información sobre ese tema en el contenido del sitio web del "
@@ -134,17 +147,32 @@ class ChatService:
         with tracer.start_as_current_span("condense_query") as span:
             span.set_attribute("openinference.span.kind", "LLM")
             span.set_attribute("input.value", question)
-            messages = [{"role": "system", "content": CONDENSE_PROMPT}]
-            messages += [{"role": t.role, "content": t.content} for t in history]
-            messages.append({"role": "user", "content": question})
+            # Compact transcript; long assistant answers tempt small models
+            # into answering instead of rewriting
+            transcript = "\n".join(
+                f"{'usuario' if t.role == 'user' else 'asistente'}: {t.content[:250]}"
+                for t in history
+            )
+            messages = [
+                {"role": "system", "content": CONDENSE_PROMPT},
+                {
+                    "role": "user",
+                    "content": CONDENSE_USER_TEMPLATE.format(transcript=transcript, question=question),
+                },
+            ]
             try:
-                condensed = self.condenser.chat(messages).text.strip()
+                condensed = self.condenser.chat(messages).text.strip().strip('"').splitlines()[0]
             except LLMError as exc:
                 logger.warning("Condensation failed (%s) — using raw question", exc)
                 return question
+            # Guard: a rewrite should stay question-sized; anything bigger
+            # means the model answered instead of rewriting
+            if not condensed or len(condensed) > 250:
+                logger.warning("Condensation output rejected (len=%d) — using raw question", len(condensed))
+                return question
             span.set_attribute("output.value", condensed)
             logger.info("Condensed %r -> %r", question, condensed)
-            return condensed or question
+            return condensed
 
     def _retrieve(self, query: str):
         with tracer.start_as_current_span("retrieve") as span:
