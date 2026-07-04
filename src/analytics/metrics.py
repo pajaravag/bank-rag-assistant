@@ -50,6 +50,24 @@ class ConversationAnalytics:
         for m in assistant_msgs:
             source_counter.update(m["sources"])
 
+        # Coverage: how often the corpus could actually answer (impact metric —
+        # unanswered questions tell the bank what content is missing)
+        no_context_msgs = [m for m in assistant_msgs if m.get("no_context")]
+        answered = len(assistant_msgs) - len(no_context_msgs)
+        unanswered_examples = [
+            messages[i - 1]["content"]
+            for i, m in enumerate(messages)
+            if m.get("no_context") and i > 0 and messages[i - 1]["role"] == "user"
+        ][-5:]
+
+        # Token usage and what this would cost on a paid API (Groq tier: $0)
+        prompt_tokens = sum(m.get("prompt_tokens") or 0 for m in assistant_msgs)
+        completion_tokens = sum(m.get("completion_tokens") or 0 for m in assistant_msgs)
+        # Reference: GPT-4o pricing ($2.50/M input, $10/M output)
+        paid_equivalent_usd = round(
+            prompt_tokens * 2.50 / 1_000_000 + completion_tokens * 10.00 / 1_000_000, 4
+        )
+
         word_counter: Counter = Counter()
         for m in user_msgs:
             words = (w.lower() for w in _WORD_RE.findall(m["content"]))
@@ -67,6 +85,18 @@ class ConversationAnalytics:
                 "avg": int(mean(latencies)) if latencies else 0,
                 "p50": int(median(latencies)) if latencies else 0,
                 "p95": _percentile(latencies, 0.95),
+            },
+            "coverage": {
+                "answered": answered,
+                "no_context": len(no_context_msgs),
+                "rate": round(answered / len(assistant_msgs), 3) if assistant_msgs else None,
+                "recent_unanswered_questions": unanswered_examples,
+            },
+            "tokens": {
+                "prompt": prompt_tokens,
+                "completion": completion_tokens,
+                "actual_cost_usd": 0.0,
+                "paid_api_equivalent_usd": paid_equivalent_usd,
             },
             "messages_per_day": dict(sorted(per_day.items())),
             "top_cited_pages": [
