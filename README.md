@@ -20,6 +20,11 @@ self-hosted, Groq free tier y Phoenix self-hosted. Costo de operación: **$0**.
 
 ## Arquitectura
 
+![Arquitectura del sistema](docs/img/architecture.png)
+
+<details>
+<summary>Ver fuente Mermaid del diagrama</summary>
+
 ```mermaid
 flowchart LR
     subgraph compose["docker compose"]
@@ -32,6 +37,12 @@ flowchart LR
     API -->|LLM| GROQ["Groq API<br/>Llama 3.x"]
     ING -->|crawl| WEB["bancolombia.com"]
 ```
+
+</details>
+
+> 📖 **[docs/PROCESO.md](docs/PROCESO.md)** explica con diagramas y datos
+> reales el proceso de scraping/limpieza y el razonamiento paso a paso del
+> retrieval (condensación, reranking, umbral de relevancia).
 
 **Flujo de una pregunta:** UI → `POST /chat` → carga de los últimos N mensajes
 de la sesión → *condensación* de la pregunta (un modelo pequeño la reescribe
