@@ -29,26 +29,46 @@ class RetrievalStrategy(ABC):
 class SimilaritySearch(RetrievalStrategy):
     """Plain bi-encoder cosine similarity against the vector store."""
 
-    def __init__(self, embedder: EmbeddingService, repo: VectorRepository, top_k: int) -> None:
+    def __init__(
+        self,
+        embedder: EmbeddingService,
+        repo: VectorRepository,
+        top_k: int,
+        min_score: float = 0.0,
+    ) -> None:
         self.embedder = embedder
         self.repo = repo
         self.top_k = top_k
+        self.min_score = min_score
 
     def retrieve(self, query: str) -> list[RetrievedChunk]:
-        return self.repo.search(self.embedder.embed_query(query), self.top_k)
+        results = self.repo.search(self.embedder.embed_query(query), self.top_k)
+        return [r for r in results if r.score >= self.min_score]
 
 
 class RerankedSearch(RetrievalStrategy):
-    """Wraps a base strategy: dedupes candidates, then cross-encoder reranks."""
+    """Wraps a base strategy: dedupes candidates, then cross-encoder reranks.
 
-    def __init__(self, base: RetrievalStrategy, reranker: CrossEncoderReranker, final_k: int) -> None:
+    Candidates scoring below `min_score` are dropped — an empty result
+    signals the service that the corpus cannot answer this question.
+    """
+
+    def __init__(
+        self,
+        base: RetrievalStrategy,
+        reranker: CrossEncoderReranker,
+        final_k: int,
+        min_score: float = float("-inf"),
+    ) -> None:
         self.base = base
         self.reranker = reranker
         self.final_k = final_k
+        self.min_score = min_score
 
     def retrieve(self, query: str) -> list[RetrievedChunk]:
         candidates = _dedupe(self.base.retrieve(query))
-        return self.reranker.rerank(query, candidates)[: self.final_k]
+        reranked = self.reranker.rerank(query, candidates)
+        return [r for r in reranked if r.score >= self.min_score][: self.final_k]
 
 
 def _dedupe(candidates: list[RetrievedChunk]) -> list[RetrievedChunk]:
@@ -66,13 +86,21 @@ def _dedupe(candidates: list[RetrievedChunk]) -> list[RetrievedChunk]:
 def build_retrieval_strategy(
     settings: Settings, embedder: EmbeddingService, repo: VectorRepository
 ) -> RetrievalStrategy:
-    base = SimilaritySearch(embedder, repo, settings.top_k)
     if not settings.rerank_enabled:
-        logger.info("Retrieval strategy: similarity search (top_k=%d)", settings.top_k)
-        return base
+        logger.info(
+            "Retrieval strategy: similarity search (top_k=%d, min_score=%.2f)",
+            settings.top_k, settings.similarity_score_threshold,
+        )
+        return SimilaritySearch(
+            embedder, repo, settings.top_k, min_score=settings.similarity_score_threshold
+        )
     logger.info(
-        "Retrieval strategy: similarity (top_k=%d) + rerank (final_k=%d)",
-        settings.top_k,
-        settings.rerank_top_k,
+        "Retrieval strategy: similarity (top_k=%d) + rerank (final_k=%d, min_score=%.2f)",
+        settings.top_k, settings.rerank_top_k, settings.rerank_score_threshold,
     )
-    return RerankedSearch(base, CrossEncoderReranker(settings.rerank_model), settings.rerank_top_k)
+    return RerankedSearch(
+        SimilaritySearch(embedder, repo, settings.top_k),
+        CrossEncoderReranker(settings.rerank_model),
+        settings.rerank_top_k,
+        min_score=settings.rerank_score_threshold,
+    )

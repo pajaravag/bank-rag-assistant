@@ -15,16 +15,28 @@ from src.models import ChatTurn
 
 _SCHEMA = """
 CREATE TABLE IF NOT EXISTS messages (
-    id          INTEGER PRIMARY KEY AUTOINCREMENT,
-    session_id  TEXT NOT NULL,
-    role        TEXT NOT NULL CHECK (role IN ('user', 'assistant')),
-    content     TEXT NOT NULL,
-    sources     TEXT,
-    latency_ms  INTEGER,
-    created_at  TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%S', 'now'))
+    id                INTEGER PRIMARY KEY AUTOINCREMENT,
+    session_id        TEXT NOT NULL,
+    role              TEXT NOT NULL CHECK (role IN ('user', 'assistant')),
+    content           TEXT NOT NULL,
+    sources           TEXT,
+    latency_ms        INTEGER,
+    prompt_tokens     INTEGER,
+    completion_tokens INTEGER,
+    no_context        INTEGER NOT NULL DEFAULT 0,
+    model             TEXT,
+    created_at        TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%S', 'now'))
 );
 CREATE INDEX IF NOT EXISTS idx_messages_session ON messages (session_id, id);
 """
+
+# Columns added after the first release; applied to pre-existing databases
+_MIGRATIONS = {
+    "prompt_tokens": "ALTER TABLE messages ADD COLUMN prompt_tokens INTEGER",
+    "completion_tokens": "ALTER TABLE messages ADD COLUMN completion_tokens INTEGER",
+    "no_context": "ALTER TABLE messages ADD COLUMN no_context INTEGER NOT NULL DEFAULT 0",
+    "model": "ALTER TABLE messages ADD COLUMN model TEXT",
+}
 
 
 class ConversationRepository:
@@ -33,6 +45,10 @@ class ConversationRepository:
         Path(db_path).parent.mkdir(parents=True, exist_ok=True)
         with self._connect() as conn:
             conn.executescript(_SCHEMA)
+            existing = {row["name"] for row in conn.execute("PRAGMA table_info(messages)")}
+            for column, ddl in _MIGRATIONS.items():
+                if column not in existing:
+                    conn.execute(ddl)
 
     @contextmanager
     def _connect(self):
@@ -51,11 +67,21 @@ class ConversationRepository:
         content: str,
         sources: list[str] | None = None,
         latency_ms: int | None = None,
+        prompt_tokens: int | None = None,
+        completion_tokens: int | None = None,
+        no_context: bool = False,
+        model: str | None = None,
     ) -> None:
         with self._connect() as conn:
             conn.execute(
-                "INSERT INTO messages (session_id, role, content, sources, latency_ms) VALUES (?, ?, ?, ?, ?)",
-                (session_id, role, content, json.dumps(sources or []), latency_ms),
+                """INSERT INTO messages
+                   (session_id, role, content, sources, latency_ms,
+                    prompt_tokens, completion_tokens, no_context, model)
+                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                (
+                    session_id, role, content, json.dumps(sources or []), latency_ms,
+                    prompt_tokens, completion_tokens, int(no_context), model,
+                ),
             )
 
     def last_n(self, session_id: str, n: int) -> list[ChatTurn]:
@@ -82,7 +108,9 @@ class ConversationRepository:
         """Every message across sessions — the analytics input."""
         with self._connect() as conn:
             rows = conn.execute(
-                "SELECT session_id, role, content, sources, latency_ms, created_at FROM messages ORDER BY id"
+                """SELECT session_id, role, content, sources, latency_ms,
+                          prompt_tokens, completion_tokens, no_context, model, created_at
+                   FROM messages ORDER BY id"""
             ).fetchall()
         return [dict(r, sources=json.loads(r["sources"] or "[]")) for r in rows]
 
