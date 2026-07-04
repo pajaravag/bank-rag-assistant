@@ -1,0 +1,64 @@
+services:
+  qdrant:
+    image: qdrant/qdrant:latest
+    ports:
+      - "6333:6333"
+    volumes:
+      - qdrant_data:/qdrant/storage
+    healthcheck:
+      test: ["CMD-SHELL", "bash -c ':> /dev/tcp/127.0.0.1/6333' || exit 1"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  api:
+    build: .
+    env_file: .env
+    environment:
+      QDRANT_URL: http://qdrant:6333
+    volumes:
+      - ./data:/app/data
+      - hf_cache:/app/.cache
+    ports:
+      - "8100:8000"
+    depends_on:
+      qdrant:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"]
+      interval: 10s
+      timeout: 5s
+      retries: 30
+      # First boot downloads the embedding + reranker models into hf_cache
+      start_period: 180s
+
+  ui:
+    build: .
+    command: streamlit run src/ui/streamlit_app.py --server.port 8501 --server.address 0.0.0.0 --server.headless true --browser.gatherUsageStats false
+    environment:
+      API_URL: http://api:8000
+    ports:
+      - "8501:8501"
+    depends_on:
+      api:
+        condition: service_healthy
+
+  # One-shot pipeline: scrape the site, then chunk/embed/index into Qdrant.
+  # Run with: docker compose run --rm ingest
+  ingest:
+    build: .
+    profiles: [ingest]
+    env_file: .env
+    environment:
+      QDRANT_URL: http://qdrant:6333
+    volumes:
+      - ./data:/app/data
+      - hf_cache:/app/.cache
+    depends_on:
+      qdrant:
+        condition: service_healthy
+    command: sh -c "python -m src.scraper && python -m src.ingestion --recreate"
+
+volumes:
+  qdrant_data:
+  hf_cache:
