@@ -112,6 +112,23 @@ def analytics_summary() -> dict:
     return state["analytics"].summary()
 
 
+@app.get("/config")
+def config_info() -> dict:
+    """Safe-to-expose runtime configuration (shown in the UI sidebar)."""
+    settings = get_settings()
+    return {
+        "llm_model": settings.llm_model,
+        "llm_fallback_model": settings.llm_fallback_model,
+        "condense_model": settings.condense_model if settings.condense_enabled else None,
+        "embedding_model": settings.embedding_model,
+        "rerank_enabled": settings.rerank_enabled,
+        "rerank_model": settings.rerank_model if settings.rerank_enabled else None,
+        "history_window_n": settings.history_window_n,
+        "top_k": settings.top_k,
+        "rerank_top_k": settings.rerank_top_k,
+    }
+
+
 @app.get("/health")
 def health() -> dict:
     return {"status": "ok"}

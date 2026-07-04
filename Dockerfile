@@ -15,6 +15,7 @@ RUN pip install -r requirements.txt
 
 COPY src ./src
 COPY tests ./tests
+COPY .streamlit ./.streamlit
 
 EXPOSE 8000 8501
 
