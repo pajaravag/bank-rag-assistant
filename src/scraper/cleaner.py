@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import json
 import logging
+import re
 from pathlib import Path
 
 from bs4 import BeautifulSoup
@@ -17,6 +18,24 @@ from src.scraper.fetcher import url_hash
 logger = logging.getLogger(__name__)
 
 BOILERPLATE_TAGS = ("script", "style", "noscript", "nav", "header", "footer", "form", "iframe", "svg")
+
+# Icon-font tokens leak into text as kebab-case identifiers (angle-right-small, ...)
+_ICON_TOKEN_RE = re.compile(r"^[a-z]+(?:-[a-z0-9]+)+$")
+
+# Pure call-to-action lines that carry no information
+_CTA_LINES = {
+    "conocer más", "conoce más", "ver más", "saber más", "más información",
+    "leer más", "quiero saber más", "solicitar", "solicitar ahora",
+}
+
+
+def _is_noise(line: str) -> bool:
+    lowered = line.lower()
+    if len(line) <= 2:
+        return True
+    if _ICON_TOKEN_RE.fullmatch(lowered) and len(line) < 40:
+        return True
+    return lowered in _CTA_LINES
 
 
 def clean_html(html: str) -> tuple[str, str]:
@@ -29,9 +48,19 @@ def clean_html(html: str) -> tuple[str, str]:
 
     main = soup.find("main") or soup.body or soup
     lines = [line.strip() for line in main.get_text("\n").splitlines()]
-    # Drop empty lines and ultra-short fragments (menu crumbs, icons)
-    text = "\n".join(line for line in lines if len(line) > 2)
-    return title, text
+
+    # Drop noise and repeated blocks (carousels duplicate whole sections)
+    seen: set[str] = set()
+    kept: list[str] = []
+    for line in lines:
+        if _is_noise(line):
+            continue
+        key = " ".join(line.lower().split())
+        if key in seen:
+            continue
+        seen.add(key)
+        kept.append(line)
+    return title, "\n".join(kept)
 
 
 class DocumentCleaner:
