@@ -8,4 +8,3 @@ qdrant_storage
 .env
 .claude
 .pytest_cache
-tests

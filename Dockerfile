@@ -14,6 +14,7 @@ COPY requirements.txt .
 RUN pip install -r requirements.txt
 
 COPY src ./src
+COPY tests ./tests
 
 EXPOSE 8000 8501
 
