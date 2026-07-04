@@ -18,6 +18,7 @@ from src.config import get_settings
 from src.ingestion.embedder import EmbeddingService
 from src.llm.base import LLMError
 from src.llm.factory import LLMProviderFactory
+from src.observability import setup_tracing
 from src.repositories.conversation_repository import ConversationRepository
 from src.repositories.vector_repository import VectorRepository
 from src.retrieval.strategies import build_retrieval_strategy
@@ -32,7 +33,16 @@ state: dict = {}
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     settings = get_settings()
+    setup_tracing(settings)
     conversations = ConversationRepository(settings.history_db_path)
+
+    condenser = None
+    if settings.condense_enabled:
+        condenser_settings = settings.model_copy(
+            update={"llm_model": settings.condense_model, "llm_max_tokens": 120}
+        )
+        condenser = LLMProviderFactory.create(condenser_settings)
+
     state["chat_service"] = ChatService(
         retrieval=build_retrieval_strategy(
             settings,
@@ -42,6 +52,7 @@ async def lifespan(app: FastAPI):
         llm=LLMProviderFactory.create(settings),
         conversations=conversations,
         history_window_n=settings.history_window_n,
+        condenser=condenser,
     )
     state["conversations"] = conversations
     state["analytics"] = ConversationAnalytics(conversations)

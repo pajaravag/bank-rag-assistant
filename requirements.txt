@@ -18,3 +18,8 @@ groq>=0.9
 fastapi>=0.111
 uvicorn[standard]>=0.30
 streamlit>=1.36
+
+# Observability (Phoenix via OpenTelemetry)
+opentelemetry-api>=1.25
+opentelemetry-sdk>=1.25
+opentelemetry-exporter-otlp-proto-http>=1.25
