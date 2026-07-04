@@ -1,7 +1,7 @@
 import pytest
 
 from src.config import Settings
-from src.llm.base import LLMError, LLMProvider
+from src.llm.base import LLMError, LLMProvider, LLMResult
 from src.llm.factory import LLMProviderFactory
 from src.models import Chunk, RetrievedChunk
 from src.retrieval.strategies import RetrievalStrategy, RerankedSearch, _dedupe
@@ -41,11 +41,11 @@ def test_factory_unknown_provider_raises():
 def test_factory_builds_registered_provider():
     class FakeProvider(LLMProvider):
         def chat(self, messages):
-            return "ok"
+            return LLMResult(text="ok", model="fake")
 
     LLMProviderFactory.register("fake", lambda s: FakeProvider())
     provider = LLMProviderFactory.create(Settings(llm_provider="fake"))
-    assert provider.chat([]) == "ok"
+    assert provider.chat([]).text == "ok"
 
 
 def test_groq_provider_requires_api_key():

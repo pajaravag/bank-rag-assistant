@@ -40,5 +40,8 @@ LLMProviderFactory.register(
         model=s.llm_model,
         temperature=s.llm_temperature,
         max_tokens=s.llm_max_tokens,
+        fallback_model=s.llm_fallback_model,
+        max_retries=s.llm_max_retries,
+        retry_base_seconds=s.llm_retry_base_seconds,
     ),
 )

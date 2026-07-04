@@ -18,11 +18,16 @@ class Settings(BaseSettings):
     groq_api_key: str = ""
     llm_provider: str = "groq"
     llm_model: str = "llama-3.3-70b-versatile"
+    llm_fallback_model: str = "llama-3.1-8b-instant"
     llm_temperature: float = 0.2
     llm_max_tokens: int = 1024
+    llm_max_retries: int = 3
+    llm_retry_base_seconds: float = 1.0
 
     # Conversation
     history_window_n: int = 6
+    condense_enabled: bool = True
+    condense_model: str = "llama-3.1-8b-instant"
 
     # Ingestion
     chunk_size: int = 800
@@ -34,6 +39,14 @@ class Settings(BaseSettings):
     rerank_enabled: bool = True
     rerank_top_k: int = 4
     rerank_model: str = "cross-encoder/mmarco-mMiniLMv2-L12-H384-v1"
+    # Chunks scoring below these thresholds are dropped; if nothing
+    # survives, the service answers honestly instead of calling the LLM
+    rerank_score_threshold: float = -5.0
+    similarity_score_threshold: float = 0.75
+
+    # Observability (Phoenix / OpenTelemetry)
+    phoenix_enabled: bool = False
+    otel_exporter_endpoint: str = "http://localhost:6006/v1/traces"
 
     # Vector DB
     qdrant_url: str = "http://localhost:6333"
