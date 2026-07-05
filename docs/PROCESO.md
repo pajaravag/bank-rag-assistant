@@ -39,7 +39,10 @@ recorrido **BFS (breadth-first)** desde `https://www.bancolombia.com/`:
 5. **Parada**: al alcanzar `SCRAPE_MAX_PAGES` (150 por defecto, configurable
    por `.env`).
 
-**Resultado real**: 150 páginas HTML crudas en ~4 minutos, cero bloqueos del
+**Resultado real (sitio completo)**: la siembra cargó **830 URLs desde los 6
+sitemaps oficiales** (índice + 5 hijos: personas, acerca-de, sala-de-prensa,
+centro-de-ayuda, educación-financiera) y el BFS descubrió páginas enlazadas
+adicionales: **1.029 páginas HTML crudas en ~25 minutos**, cero bloqueos del
 sitio (el respeto de robots.txt y el delay evitan el rate-limiting).
 
 > **Decisión documentada**: la prueba nombra a BBVA Colombia, pero
@@ -63,9 +66,11 @@ cada HTML crudo en un documento de texto útil:
 
 El resultado va a `data/clean/{hash}.json` con `{url, title, text, fetched_at}`.
 
-**Impacto medible de la limpieza**: el mismo crawl de 150 páginas produce
-**1.133 chunks sin los filtros de ruido vs. 1.032 con ellos (−9 %)** — ese 9 %
-era ruido que competía en el retrieval contra contenido real.
+**Impacto medible de la limpieza** (medido en un A/B sobre un crawl de 150
+páginas): **1.133 chunks sin los filtros de ruido vs. 1.032 con ellos (−9 %)**
+— ese 9 % era ruido que competía en el retrieval contra contenido real. En el
+sitio completo, 39 de las 1.029 páginas crudas se descartaron por quedar casi
+vacías tras la limpieza (páginas de redirección o puramente visuales).
 
 ### 1.3 Indexación
 
@@ -75,6 +80,12 @@ vectoriza con `multilingual-e5-small` (prefijo `passage:`, vectores
 normalizados de 384 dims) y se inserta en Qdrant con **IDs deterministas**
 (`uuid5(url + chunk_index)`), de modo que re-ejecutar la ingesta actualiza en
 lugar de duplicar.
+
+**Corpus final indexado**: 1.029 páginas crudas → **990 documentos limpios →
+5.944 chunks** en Qdrant. La cobertura del sitio completo incluye el centro
+de ayuda (170 páginas de preguntas frecuentes), que mejora sensiblemente las
+respuestas operativas ("¿cómo desbloqueo mi clave?") frente al corpus inicial
+de 150 páginas.
 
 ---
 
