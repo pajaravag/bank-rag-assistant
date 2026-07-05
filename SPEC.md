@@ -1,5 +1,13 @@
 # SPEC — RAG Conversational Assistant with Web Scraping
 
+> **Nota**: este es el documento de diseño **previo a la implementación**
+> (enfoque spec-driven), conservado como artefacto del proceso. El sistema
+> final difiere en puntos decididos durante el desarrollo: Phoenix para
+> observabilidad, condensación de consultas de seguimiento, umbral de
+> relevancia con gating honesto, y Singleton como cuarto patrón en lugar de
+> Chain of Responsibility. La documentación del sistema final está en
+> [README.md](README.md) y [docs/PROCESO.md](docs/PROCESO.md).
+
 **Role test:** Machine Learning Engineer / AI Engineer
 **Deadline:** Sunday, July 5, 11:59 PM
 **Delivery:** Public repo (GitHub), Dockerized, meaningful commit history

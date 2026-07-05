@@ -106,6 +106,15 @@ Los datos scrapeados quedan visibles en `./data/raw/` (HTML crudo + manifest) y
 
 También puedes usar la API directamente:
 
+| Endpoint | Descripción |
+|---|---|
+| `POST /chat` | Pregunta con `{session_id, message}` → respuesta con fuentes y latencia |
+| `GET /sessions` | Sesiones existentes, la más reciente primero |
+| `GET /sessions/{id}/history` | Historial completo persistido de una sesión |
+| `GET /analytics/summary` | Métricas de uso e impacto sobre todo el historial |
+| `GET /config` | Configuración segura en runtime (modelos, N, reranker) |
+| `GET /health` | Liveness para healthchecks |
+
 ```bash
 curl -X POST http://localhost:8100/chat \
   -H "Content-Type: application/json" \
@@ -168,6 +177,9 @@ los Repository aíslan las dos persistencias reales del proyecto.
 ├── docker-compose.yml      # qdrant + api + ui + phoenix + ingest (perfil)
 ├── Dockerfile
 ├── SPEC.md                 # diseño previo a la implementación (SDD)
+├── .streamlit/             # tema de la UI
+├── docs/                   # PROCESO.md + diagramas (regenerables con
+│                           #   docs/render_diagrams.py; requiere Graphviz)
 ├── src/
 │   ├── config.py           # settings tipados desde .env (Singleton)
 │   ├── models.py           # contratos de datos compartidos

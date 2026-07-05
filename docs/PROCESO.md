@@ -160,4 +160,5 @@ herramienta para depurar por qué el sistema respondió (o no) una pregunta.
 ![Arquitectura](img/architecture.png)
 
 Los diagramas de este documento se regeneran con
-`python docs/render_diagrams.py`.
+`python docs/render_diagrams.py` (requiere [Graphviz](https://graphviz.org/):
+`brew install graphviz` en macOS o `apt-get install graphviz` en Debian/Ubuntu).
