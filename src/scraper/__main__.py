@@ -27,6 +27,7 @@ def main() -> None:
             max_pages=args.max_pages,
             delay_seconds=settings.scrape_delay_seconds,
             timeout_seconds=settings.scrape_timeout_seconds,
+            sitemap_seed=settings.sitemap_seed,
         )
         results = fetcher.crawl()
         logging.info("Fetched %d pages", len(results))

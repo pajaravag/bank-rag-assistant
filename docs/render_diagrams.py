@@ -65,6 +65,7 @@ digraph scraping {{
     rankdir=TB;
     {STYLE}
     seed    [label="URL semilla\\nbancolombia.com", {HL}];
+    sitemap [label="Sembrar cola con sitemaps oficiales\\nrobots.txt → sitemap-index (~830 URLs)\\ncobertura garantizada + BFS descubre extras", {HL}];
     robots  [label="¿robots.txt\\npermite?", {DECISION}];
     fetch   [label="GET con User-Agent propio\\ndelay 0.4 s · timeout 15 s", {PROC}];
     okhtml  [label="¿200 y\\ntext/html?", {DECISION}];
@@ -79,7 +80,8 @@ digraph scraping {{
     cleanok [label="Guardar limpio (FR2)\\ndata/clean/{{hash}}.json\\nurl · título · texto · fecha", {END_GOOD}];
     discard [label="descartar", {END_BAD}];
 
-    seed -> robots;
+    seed -> sitemap;
+    sitemap -> robots;
     robots -> fetch [label="sí"];
     robots -> discard [label="no"];
     fetch -> okhtml;

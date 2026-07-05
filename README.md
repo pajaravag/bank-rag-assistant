@@ -80,6 +80,11 @@ docker compose up -d --build
 docker compose run --rm ingest
 ```
 
+> Con el valor por defecto (`SCRAPE_MAX_PAGES=150`) el arranque es rápido.
+> Para indexar el **sitio completo** (~830 páginas declaradas en los
+> sitemaps oficiales), sube `SCRAPE_MAX_PAGES=1000` en `.env` y re-ejecuta
+> el paso 4 (~20 min; la re-ingesta hace upsert, no duplica).
+
 | Servicio | URL | Descripción |
 |---|---|---|
 | **Chat / Analítica** | http://localhost:8501 | Interfaz conversacional (Streamlit) |
@@ -158,7 +163,7 @@ los Repository aíslan las dos persistencias reales del proyecto.
 
 | Componente | Elección | Justificación |
 |---|---|---|
-| Scraping | `httpx` + `BeautifulSoup4` | El sitio se sirve server-side; un crawler BFS ligero con respeto de `robots.txt` y delays es suficiente — sin el peso de un navegador headless |
+| Scraping | `httpx` + `BeautifulSoup4` | El sitio se sirve server-side; crawler BFS **sembrado con los sitemaps oficiales** (cobertura garantizada), con respeto de `robots.txt` y delays — sin el peso de un navegador headless |
 | Base vectorial | **Qdrant** (self-hosted) | Open source, gratuita, primera clase en Docker y con dashboard propio; corre como servicio real en compose |
 | Embeddings | `intfloat/multilingual-e5-small` | Gratuito, local, multilingüe (el contenido es en español), 384 dims, corre bien en CPU. Se aplican los prefijos `query:`/`passage:` que la familia e5 exige |
 | Reranker | `cross-encoder/mmarco-mMiniLMv2-L12-H384-v1` | Cross-encoder multilingüe pequeño; re-puntúa (pregunta, fragmento) con mucha más precisión que la similitud coseno y habilita el umbral de relevancia |

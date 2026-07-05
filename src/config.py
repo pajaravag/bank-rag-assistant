@@ -55,6 +55,7 @@ class Settings(BaseSettings):
     # Scraper
     scrape_base_url: str = "https://www.bancolombia.com/"
     scrape_max_pages: int = 150
+    sitemap_seed: bool = True
     scrape_delay_seconds: float = 0.4
     scrape_timeout_seconds: float = 15.0
 

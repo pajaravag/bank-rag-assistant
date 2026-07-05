@@ -10,6 +10,7 @@ import hashlib
 import json
 import logging
 import time
+import xml.etree.ElementTree as ET
 from dataclasses import dataclass
 from pathlib import Path
 from urllib import robotparser
@@ -32,6 +33,22 @@ def url_hash(url: str) -> str:
     return hashlib.sha256(url.encode("utf-8")).hexdigest()[:16]
 
 
+def parse_sitemap(xml_text: str) -> tuple[list[str], list[str]]:
+    """Parses a sitemap document into (child_sitemaps, page_urls).
+
+    A <sitemapindex> yields child sitemaps; a <urlset> yields page URLs.
+    Malformed XML yields nothing (the crawl falls back to plain BFS).
+    """
+    try:
+        root = ET.fromstring(xml_text)
+    except ET.ParseError:
+        return [], []
+    locs = [el.text.strip() for el in root.iter() if el.tag.endswith("loc") and el.text]
+    if root.tag.endswith("sitemapindex"):
+        return locs, []
+    return [], locs
+
+
 @dataclass
 class FetchResult:
     url: str
@@ -49,6 +66,7 @@ class SiteFetcher:
         max_pages: int = 150,
         delay_seconds: float = 0.4,
         timeout_seconds: float = 15.0,
+        sitemap_seed: bool = True,
     ) -> None:
         self.base_url = base_url.rstrip("/")
         self.domain = urlparse(base_url).netloc
@@ -56,6 +74,7 @@ class SiteFetcher:
         self.max_pages = max_pages
         self.delay_seconds = delay_seconds
         self.timeout_seconds = timeout_seconds
+        self.sitemap_seed = sitemap_seed
         self.robots = self._load_robots()
 
     def _load_robots(self) -> robotparser.RobotFileParser:
@@ -80,6 +99,56 @@ class SiteFetcher:
     def _allowed(self, url: str) -> bool:
         return self.robots.can_fetch(USER_AGENT, url)
 
+    def _sitemap_urls(self) -> list[str]:
+        """In-scope page URLs declared in the site's official sitemaps.
+
+        Sitemap locations come from robots.txt (`Sitemap:` directives),
+        falling back to the conventional /sitemap-index.xml and
+        /sitemap.xml. Guarantees coverage of pages that BFS link-following
+        alone might never reach.
+        """
+        scheme = urlparse(self.base_url).scheme
+        root = f"{scheme}://{self.domain}"
+        candidates: list[str] = []
+        try:
+            resp = httpx.get(
+                f"{root}/robots.txt", headers={"User-Agent": USER_AGENT},
+                timeout=self.timeout_seconds, follow_redirects=True,
+            )
+            candidates = [
+                line.split(":", 1)[1].strip()
+                for line in resp.text.splitlines()
+                if line.lower().startswith("sitemap:")
+            ]
+        except httpx.HTTPError:
+            pass
+        if not candidates:
+            candidates = [f"{root}/sitemap-index.xml", f"{root}/sitemap.xml"]
+
+        urls: list[str] = []
+        visited: set[str] = set()
+        queue = list(candidates)
+        while queue and len(visited) < 30:  # safety cap on sitemap fan-out
+            sitemap_url = queue.pop(0)
+            if sitemap_url in visited:
+                continue
+            visited.add(sitemap_url)
+            try:
+                resp = httpx.get(
+                    sitemap_url, headers={"User-Agent": USER_AGENT},
+                    timeout=self.timeout_seconds, follow_redirects=True,
+                )
+                resp.raise_for_status()
+            except httpx.HTTPError as exc:
+                logger.warning("Could not fetch sitemap %s: %s", sitemap_url, exc)
+                continue
+            child_maps, page_urls = parse_sitemap(resp.text)
+            queue.extend(child_maps)
+            urls.extend(u for u in page_urls if self._in_scope(u))
+
+        logger.info("Sitemap seeding: %d URLs from %d sitemap(s)", len(urls), len(visited))
+        return urls
+
     def _in_scope(self, url: str) -> bool:
         parsed = urlparse(url)
         if parsed.netloc != self.domain:
@@ -102,6 +171,10 @@ class SiteFetcher:
         manifest_path = self.raw_dir / "manifest.jsonl"
         results: list[FetchResult] = []
         queue: list[str] = [self.base_url + "/"]
+        if self.sitemap_seed:
+            for url in self._sitemap_urls():
+                if url not in queue:
+                    queue.append(url)
         seen: set[str] = set(queue)
 
         with httpx.Client(

@@ -16,7 +16,11 @@ El crawler ([`src/scraper/fetcher.py`](../src/scraper/fetcher.py)) hace un
 recorrido **BFS (breadth-first)** desde `https://www.bancolombia.com/`:
 
 1. **`robots.txt` primero**: se descarga y parsea antes de tocar cualquier
-   página; toda URL no permitida se descarta.
+   página; toda URL no permitida se descarta. De sus directivas `Sitemap:`
+   se obtienen los **sitemaps oficiales** del sitio y la cola se siembra con
+   todas sus URLs (~830 en bancolombia.com, repartidas en 5 sitemaps) —
+   cobertura garantizada del inventario declarado, mientras el BFS descubre
+   además páginas enlazadas que no figuren en el sitemap.
 2. **Peticiones educadas**: User-Agent propio identificable
    (`bank-rag-assistant/0.1 (+repo)`), delay de 0.4 s entre peticiones y
    timeout de 15 s.
