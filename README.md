@@ -219,8 +219,11 @@ Actions que los ejecuta en cada push.
   (403 a nivel CDN). La prueba permite otro banco; se eligió Bancolombia y se
   documentó la verificación. Superarlo habría requerido un navegador headless
   y técnicas anti-detección, inapropiadas para una prueba.
-- **Alcance del scraping**: hasta `SCRAPE_MAX_PAGES` (150) páginas HTML del
-  dominio, respetando `robots.txt`, sin contenido tras login ni PDFs.
+- **Alcance del scraping**: hasta `SCRAPE_MAX_PAGES` páginas HTML del dominio
+  (150 por defecto para un arranque rápido; el corpus entregado se generó con
+  `SCRAPE_MAX_PAGES=1000` y cubre el **sitio completo**: 1.029 páginas crudas →
+  990 documentos limpios → 5.944 chunks), respetando `robots.txt`, sin
+  contenido tras login ni PDFs.
 - **Sin autenticación ni rate limiting en la API**: es un asistente interno de
   demostración; en producción iría detrás de un gateway con SSO.
 - **Sin streaming de respuestas**: la respuesta llega completa (1–5 s). SSE
